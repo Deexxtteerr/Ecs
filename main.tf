@@ -8,21 +8,15 @@ terraform {
   }
 }
 
-# Provider for us-west-2 (where ECS cluster is)
+# Provider for us-west-1 (unified region for both ECS and ECR)
 provider "aws" {
-  alias  = "west"
-  region = "us-west-2"
+  alias  = "west1"
+  region = "us-west-1"
 }
 
-# Provider for us-east-1 (where ECR repo is)
-provider "aws" {
-  alias  = "east"
-  region = "us-east-1"
-}
-
-# ECR Repository in us-east-1 (existing)
+# ECR Repository in us-west-1 (moved from us-east-1)
 resource "aws_ecr_repository" "demo_app_repo" {
-  provider             = aws.east
+  provider             = aws.west1
   name                 = "demo-app-repo"
   image_tag_mutability = "IMMUTABLE"
 
@@ -35,15 +29,15 @@ resource "aws_ecr_repository" "demo_app_repo" {
   }
 }
 
-# ECS Cluster in us-west-2 (existing)
+# ECS Cluster in us-west-1 (moved from us-west-2)
 resource "aws_ecs_cluster" "demo_ecs_cluster" {
-  provider = aws.west
+  provider = aws.west1
   name     = "demo-ecs-cluster"
 }
 
-# IAM Role for ECS Task Execution (existing)
+# IAM Role for ECS Task Execution in us-west-1
 resource "aws_iam_role" "ecs_task_execution_role" {
-  provider = aws.west
+  provider = aws.west1
   name     = "ecsTaskExecutionRole"
 
   assume_role_policy = jsonencode({
@@ -65,21 +59,21 @@ resource "aws_iam_role" "ecs_task_execution_role" {
 
 # Attach the ECS task execution role policy
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
-  provider   = aws.west
+  provider   = aws.west1
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# CloudWatch Log Group (auto-created by ECS)
+# CloudWatch Log Group in us-west-1
 resource "aws_cloudwatch_log_group" "demo_ecs_example" {
-  provider          = aws.west
+  provider          = aws.west1
   name              = "/ecs/demo-ecs-example"
   retention_in_days = 0  # Never expire (default)
 }
 
-# ECS Task Definition (existing)
+# ECS Task Definition in us-west-1
 resource "aws_ecs_task_definition" "demo_ecs_example" {
-  provider                 = aws.west
+  provider                 = aws.west1
   family                   = "demo-ecs-example"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
@@ -95,7 +89,7 @@ resource "aws_ecs_task_definition" "demo_ecs_example" {
   container_definitions = jsonencode([
     {
       name      = "example"
-      image     = "207567797053.dkr.ecr.us-east-1.amazonaws.com/demo-app-repo"
+      image     = "207567797053.dkr.ecr.us-west-1.amazonaws.com/demo-app-repo"
       essential = true
 
       portMappings = [
@@ -113,7 +107,7 @@ resource "aws_ecs_task_definition" "demo_ecs_example" {
         options = {
           "awslogs-group"         = "/ecs/demo-ecs-example"
           "awslogs-create-group"  = "true"
-          "awslogs-region"        = "us-west-2"
+          "awslogs-region"        = "us-west-1"
           "awslogs-stream-prefix" = "ecs"
         }
         secretOptions = []
