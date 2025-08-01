@@ -40,6 +40,49 @@ Internet → Application Load Balancer → Target Group → ECS Service → Task
 - **Scalability**: Auto scaling based on CPU (70%) and Memory (80%)
 - **Monitoring**: CloudWatch logs and metrics integration
 
+## Complete Command List for ECS Web App Deployment
+
+### 1. Navigate to project directory:
+```bash
+cd /home/nilesh/ECS
+```
+
+### 2. Deploy infrastructure:
+```bash
+terraform apply -auto-approve
+```
+
+### 3. Deploy application:
+```bash
+./deploy.sh
+```
+
+### 4. Get your URLs:
+```bash
+# Get main URL
+terraform output load_balancer_url
+
+# Get DNS name only
+terraform output -raw load_balancer_dns
+
+# Get complete greet URL
+echo "$(terraform output -raw load_balancer_url)/greet/YourName"
+```
+
+### 5. Test your endpoints:
+```bash
+# Test main endpoint
+curl $(terraform output -raw load_balancer_url)
+
+# Test greet endpoint
+curl "$(terraform output -raw load_balancer_url)/greet/YourName"
+```
+
+### 6. When done (to avoid charges):
+```bash
+terraform destroy -auto-approve
+```
+
 ## Files Structure
 
 ```
