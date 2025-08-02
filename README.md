@@ -1,23 +1,56 @@
 # ECS Flask Application with Terraform
 
-This project demonstrates how to deploy a Flask web application on AWS ECS using Terraform for Infrastructure as Code (IaC) with **Production-Ready Load Balancer and Auto Scaling**.
+This project demonstrates how to deploy a Flask web application on AWS ECS using Terraform for Infrastructure as Code (IaC). The project includes **TWO DEPLOYMENT OPTIONS** to understand the differences between Fargate and EC2 launch types.
 
-## 🌐 **LIVE APPLICATION**
+## 🚀 **DEPLOYMENT OPTIONS**
 
-**🚀 Access the live application here:**
-- **Main URL**: http://ecs-alb-1484419533.us-west-1.elb.amazonaws.com
-- **Greeting Endpoint**: http://ecs-alb-1484419533.us-west-1.elb.amazonaws.com/greet/YourName
-- **Status**: ✅ **LIVE** - Running with Load Balancer and Auto Scaling
+### **Option 1: Fargate Deployment (Serverless)**
+- **File**: `main-fargate.tf`
+- **Launch Type**: AWS Fargate (Serverless)
+- **Management**: AWS handles all infrastructure automatically
+- **Resources**: 32 AWS resources with private subnets and NAT gateways
 
-## Project Overview
+### **Option 2: EC2 Deployment (Manual Infrastructure Management)**
+- **File**: `main.tf` (current active deployment)
+- **Launch Type**: EC2 instances
+- **Management**: YOU manually configure all infrastructure
+- **Resources**: 28 AWS resources with full control over EC2 instances
+
+## 🌐 **LIVE APPLICATION - EC2 DEPLOYMENT**
+
+**🚀 Current EC2-based deployment:**
+- **Main URL**: http://ecs-ec2-alb-343386134.us-west-1.elb.amazonaws.com
+- **Greeting Endpoint**: http://ecs-ec2-alb-343386134.us-west-1.elb.amazonaws.com/greet/YourName
+- **Status**: ✅ **LIVE** - Running on EC2 instances WITHOUT Fargate
+- **Launch Type**: EC2 (Manual infrastructure management)
+
+## 🔄 **Key Differences: Fargate vs EC2**
+
+### **Fargate (Serverless)**
+- ✅ AWS manages everything automatically
+- ✅ No EC2 instance management
+- ✅ Pay per task (CPU/Memory)
+- ❌ Less control over infrastructure
+- ❌ Higher cost per resource
+
+### **EC2 (Manual Management)**
+- ✅ Full control over infrastructure
+- ✅ Lower cost for consistent workloads
+- ✅ Can SSH into instances for debugging
+- ❌ YOU manage scaling, patching, monitoring
+- ❌ More complex setup and maintenance
+
+## Project Overview - EC2 Deployment
 
 - **Application**: Simple Flask web app with two endpoints
 - **Container**: Docker containerized application
 - **Registry**: AWS ECR (Elastic Container Registry)
-- **Orchestration**: AWS ECS (Elastic Container Service) with Fargate
-- **Load Balancer**: Application Load Balancer with health checks
-- **Auto Scaling**: CPU and Memory-based scaling (1-10 tasks)
-- **Infrastructure**: Managed with Terraform (32 AWS resources)
+- **Orchestration**: AWS ECS (Elastic Container Service) with **EC2 Launch Type**
+- **Compute**: EC2 instances with ECS-optimized AMI (t3.micro)
+- **Load Balancer**: Application Load Balancer (manually configured)
+- **Auto Scaling**: EC2 Auto Scaling Group with CloudWatch alarms
+- **Infrastructure**: Managed with Terraform (28 AWS resources)
+- **Network**: Public subnets (simplified architecture)
 - **Architecture**: Production-ready multi-AZ deployment
 
 ## 🏗️ **Production Architecture**
@@ -40,24 +73,48 @@ Internet → Application Load Balancer → Target Group → ECS Service → Task
 - **Scalability**: Auto scaling based on CPU (70%) and Memory (80%)
 - **Monitoring**: CloudWatch logs and metrics integration
 
-## Complete Command List for ECS Web App Deployment
+## 🏗️ **EC2 Deployment Architecture (Current)**
+
+```
+Internet → Application Load Balancer → Target Group → EC2 Instances → ECS Tasks
+              ↓                           ↓              ↓              ↓
+        Security Groups              Health Checks   Auto Scaling   Dynamic Ports
+              ↓                           ↓              ↓              ↓
+        Public Subnets              CloudWatch      Launch Template  Container Apps
+              ↓                      Monitoring           ↓              ↓
+        Route Tables                     ↓         t3.micro instances  Flask App
+              ↓                    Application Logs       ↓
+        Internet Gateway                 ↓         ECS-optimized AMI
+```
+
+**EC2 Infrastructure YOU Manually Configured:**
+- **VPC and Networking**: Custom VPC, public subnets, route tables, internet gateway
+- **EC2 Auto Scaling**: Launch template, auto scaling group (1-4 instances)
+- **Load Balancer**: ALB, target groups, listeners, health checks
+- **Security**: Security groups for ALB and EC2 instances
+- **Monitoring**: CloudWatch alarms for CPU-based scaling
+- **ECS Integration**: Container instances, dynamic port mapping
+
+## Complete Command List for EC2-based ECS Web App Deployment
 
 ### 1. Navigate to project directory:
 ```bash
 cd /home/nilesh/ECS
 ```
 
-### 2. Deploy infrastructure:
+### 2. Deploy EC2-based ECS infrastructure:
 ```bash
+# This deploys EC2 instances, ALB, Auto Scaling - NO Fargate
 terraform apply -auto-approve
 ```
 
-### 3. Deploy application:
+### 3. Deploy application to EC2 instances:
 ```bash
-./deploy.sh
+# Alternative: Use the dedicated EC2 deployment script
+./deploy-ec2.sh
 ```
 
-### 4. Get your URLs:
+### 4. Get your URLs (EC2 deployment):
 ```bash
 # Get main URL
 terraform output load_balancer_url
@@ -69,7 +126,7 @@ terraform output -raw load_balancer_dns
 echo "$(terraform output -raw load_balancer_url)/greet/YourName"
 ```
 
-### 5. Test your endpoints:
+### 5. Test your EC2-based endpoints:
 ```bash
 # Test main endpoint
 curl $(terraform output -raw load_balancer_url)
@@ -78,10 +135,56 @@ curl $(terraform output -raw load_balancer_url)
 curl "$(terraform output -raw load_balancer_url)/greet/YourName"
 ```
 
-### 6. When done (to avoid charges):
+### 6. Monitor your EC2 infrastructure:
+```bash
+# Check EC2 instances in ECS cluster
+aws ecs list-container-instances --cluster demo-ecs-cluster-ec2 --region us-west-1
+
+# Check Auto Scaling Group
+aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names ecs-ec2-asg --region us-west-1
+
+# Check ECS service on EC2
+aws ecs describe-services --cluster demo-ecs-cluster-ec2 --services demo-ecs-service-ec2 --region us-west-1
+
+# Check load balancer target health
+aws elbv2 describe-target-health --target-group-arn $(terraform output -raw load_balancer_dns | cut -d'.' -f1) --region us-west-1
+```
+
+### 7. When done (to avoid charges):
 ```bash
 terraform destroy -auto-approve
 ```
+
+## 📊 **Resource Management: EC2 vs Fargate**
+
+### **EC2 Launch Type (Current Deployment)**
+**What YOU Manually Configure:**
+- ✅ **EC2 Instances**: Launch template, instance types, AMI selection
+- ✅ **Auto Scaling Group**: Min/max instances, scaling policies
+- ✅ **Load Balancer**: ALB creation, target groups, listeners
+- ✅ **Security Groups**: Network access rules for ALB and EC2
+- ✅ **CloudWatch Alarms**: CPU/memory thresholds for scaling
+- ✅ **VPC Networking**: Subnets, route tables, internet gateway
+- ✅ **Dynamic Port Mapping**: ECS assigns random ports to containers
+- ✅ **Instance Maintenance**: Patching, monitoring, troubleshooting
+
+**Resource Count**: 28 AWS resources
+**Cost Model**: Pay for EC2 instances (even when idle)
+**Control Level**: Full control over infrastructure
+
+### **Fargate Launch Type (Alternative)**
+**What AWS Manages Automatically:**
+- 🤖 **Serverless**: No EC2 instances to manage
+- 🤖 **Auto Scaling**: AWS handles task scaling automatically
+- 🤖 **Load Balancer**: Automatic target registration/deregistration
+- 🤖 **Security**: AWS manages underlying infrastructure security
+- 🤖 **Networking**: Automatic ENI creation and management
+- 🤖 **Monitoring**: Built-in CloudWatch integration
+- 🤖 **Maintenance**: AWS handles all patching and updates
+
+**Resource Count**: 32 AWS resources (includes NAT gateways, private subnets)
+**Cost Model**: Pay per task (CPU/memory usage)
+**Control Level**: Limited control, AWS abstracts infrastructure
 
 ## Files Structure
 
@@ -90,7 +193,32 @@ ECS/
 ├── app.py                                    # Flask application
 ├── Dockerfile                               # Container definition
 ├── requirements.txt                         # Python dependencies
-├── main.tf                                  # Complete Terraform configuration (32 resources)
+├── main.tf                                  # EC2-based ECS configuration (28 resources)
+├── main-fargate.tf                          # Fargate-based ECS configuration (32 resources)
+├── deploy.sh                                # Basic Fargate deployment script
+├── deploy-ec2.sh                           # EC2-based deployment script
+├── deploy_with_lb_autoscaling.sh           # Production Fargate deployment
+├── manage_ecs.sh                           # CLI management and monitoring tools
+├── import.sh                               # Terraform import script
+├── LOAD_BALANCER_AUTOSCALING_IMPLEMENTATION.md  # Detailed implementation docs
+├── main.tf.backup                          # Backup configurations
+├── terraform.tfstate                       # Terraform state (managed)
+├── .terraform.lock.hcl                     # Terraform lock file
+└── README.md                               # This file
+```
+
+## 🚀 **Deployment Scripts**
+
+### **EC2 Deployment (Current)**
+```bash
+./deploy-ec2.sh    # Deploys EC2-based ECS with manual infrastructure management
+```
+
+### **Fargate Deployment (Alternative)**
+```bash
+./deploy.sh                           # Basic Fargate deployment
+./deploy_with_lb_autoscaling.sh      # Production Fargate with full features
+```
 ├── deploy.sh                                # Basic deployment script
 ├── deploy_with_lb_autoscaling.sh           # Production deployment with LB & Auto Scaling
 ├── manage_ecs.sh                           # CLI management and monitoring tools
